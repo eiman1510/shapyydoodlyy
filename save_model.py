@@ -1,12 +1,15 @@
 import tensorflow as tf
 import kagglehub
 import os
+import joblib
+from sklearn.tree import DecisionTreeClassifier
+import numpy as np
 
 # Download dataset and set paths
 base_path = kagglehub.dataset_download("smeschke/four-shapes")
 dataset_path = os.path.join(base_path, "shapes")
 
-# Define model architecture (same as notebook)
+# Define model architecture
 img_size = 64
 model = tf.keras.Sequential([
     tf.keras.Input(shape=(img_size, img_size, 3)),
@@ -23,7 +26,7 @@ model = tf.keras.Sequential([
 # Compile model
 model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
 
-# Train model with same data preprocessing
+# Data preprocessing
 datagen = tf.keras.preprocessing.image.ImageDataGenerator(
     rescale=1./255,
     validation_split=0.2
@@ -42,6 +45,26 @@ train_generator = datagen.flow_from_directory(
 # Train model
 model.fit(train_generator, epochs=10)
 
-# Save model
+# Save TensorFlow model
 model.save('shapes_model.h5')
-print("Model saved as shapes_model.h5") 
+print("TensorFlow model saved as shapes_model.h5")
+
+# Create and save scikit-learn model for deployment
+# Extract features and labels from the generator
+features = []
+labels = []
+for i in range(len(train_generator)):
+    x, y = train_generator[i]
+    features.append(x.reshape(x.shape[0], -1))
+    labels.append(np.argmax(y, axis=1))
+    
+features = np.concatenate(features)
+labels = np.concatenate(labels)
+
+# Train a simple decision tree classifier
+clf = DecisionTreeClassifier(random_state=42)
+clf.fit(features, labels)
+
+# Save scikit-learn model
+joblib.dump(clf, 'shapes_model.joblib')
+print("Scikit-learn model saved as shapes_model.joblib") 
